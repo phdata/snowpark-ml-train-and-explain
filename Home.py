@@ -4,13 +4,16 @@ from snowflake.snowpark.version import VERSION
 # Snowpark ML
 from snowflake_ml import get_session
 
+st.set_page_config(
+    page_title="Snowpark ML Demo",
+    # layout="wide",
+)
 
-st.title("Train and Explain Model Using Snowflake ML")
+st.title("Train and Explain Using Snowpark ML")
 
 st.write(
     """
-This is a demonstration of the Snowflake ML library and how to use Streamlit to
-explore prediction explanations using SHAP.
+This is a demonstration of the Snowpark ML Python library.
 1. Explore the features available in the data.
 2. Create a preprocessing pipeline.
 3. Train a model using the Snowflake ML library.

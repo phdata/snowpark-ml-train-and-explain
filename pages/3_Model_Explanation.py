@@ -99,7 +99,7 @@ model_input_cols = pipeline.steps[1][1].input_cols
 
 selection = st.radio(
     "Select Explanation Type",
-    ["What-If", "Summary", "Partial Dependence", "Shap Location", "Pydeck Example"],
+    ["Summary", "What-If", "Partial Dependence", "Shap Location"],
     horizontal=True,
 )
 
