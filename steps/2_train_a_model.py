@@ -17,20 +17,26 @@ from snowflake_ml import get_session
 def main(model_version):
     session = get_session()
 
-    housing_df = session.table("HOUSING")
+    # Define input and output columns
+
     target = "MEDIAN_HOUSE_VALUE"
-    df = housing_df.limit(1).to_pandas()
-    quantitative_columns = df.columns[df.dtypes == "float64"].to_list()
-    quantitative_columns.remove("LONGITUDE")
-    quantitative_columns.remove("LATITUDE")
-    categorical_columns = df.columns[df.dtypes == "object"].to_list()
-    quantitative_columns.remove(target)
+    quantitative_columns = [
+        "MEDIAN_INCOME",
+        "TOTAL_BEDROOMS",
+        "POPULATION",
+        "HOUSING_MEDIAN_AGE",
+        "HOUSEHOLDS",
+        "TOTAL_ROOMS",
+    ]
+    categorical_columns = ["OCEAN_PROXIMITY"]
     oe_output_cols = [c + "_ORD" for c in categorical_columns]
 
+    # Create preprocessing step
     ordinal_encoder = snowml.OrdinalEncoder(
         input_cols=categorical_columns,
         output_cols=oe_output_cols,
     )
+    # Create model step
     reg = XGBRegressor(
         n_estimators=50,
         input_cols=oe_output_cols + quantitative_columns,
@@ -38,6 +44,7 @@ def main(model_version):
         output_cols=[target + "_PRED"],
     )
 
+    # Create Snowpark ML Pipeline
     pipeline = Pipeline(
         [
             ("ordinal_encoder", ordinal_encoder),
@@ -45,10 +52,12 @@ def main(model_version):
         ]
     )
 
+    # Train/Test Split and Fit
+    housing_df = session.table("HOUSING")
     df_train, df_test = housing_df.random_split([0.8, 0.2], seed=42)
-
     pipeline.fit(df_train)
 
+    # Calculate Metrics
     df_test_pred = pipeline.predict(df_test)
     mape = mean_absolute_percentage_error(
         df=df_test_pred,
@@ -62,7 +71,7 @@ def main(model_version):
     # Define model name and version
     model_name = "housing_model"
 
-    # Create a registry and log the model
+    # Create a registry and log the model and Metrics
     registry = model_registry.ModelRegistry(
         session=session, database_name=db, schema_name=schema, create_if_not_exists=True
     )
@@ -74,9 +83,9 @@ def main(model_version):
             model=pipeline,
             sample_input_data=X,
             options={
-                "embed_local_ml_library": True,  # This option is enabled to pull latest dev code changes.
+                "embed_local_ml_library": True,
                 "relax": True,
-            },  # relax dependencies
+            },
         )
 
         # Add evaluation metric
@@ -109,3 +118,7 @@ def main(model_version):
         options={"relax_version": True},
     )
     print(registry.list_deployments(model_name, model_version).to_pandas())
+
+
+if __name__ == "__main__":
+    main()
