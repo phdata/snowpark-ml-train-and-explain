@@ -8,6 +8,7 @@ def get_session():
     params["role"] = "MLE_ARCHITECTS"
     params["database"] = "SANDBOX"
     params["schema"] = "PHANSEN_WEEKLY_ML"
+    params["session_paraemters"] = {"CLIENT_SESSION_KEEP_ALIVE": True}
     session = Session.builder.configs(params).create()
     session.sql_simplifier_enabled = True
     return session

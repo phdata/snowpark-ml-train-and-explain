@@ -57,13 +57,13 @@ model_name = st.text_input("Model Name", value="housing_model")
 
 
 @st.cache_resource
-def get_model(model_version):
+def get_model(model_version, model_name):
     return model_registry.ModelReference(
         registry=get_registry(), model_name=model_name, model_version=model_version
     )
 
 
-model_ref = get_model(model_version)
+model_ref = get_model(model_version, model_name)
 
 pipeline = model_ref.load_model()
 
@@ -79,7 +79,7 @@ model_deployment_name = f"{model_name}{model_version}_UDF"
 
 
 @st.cache_data
-def predict(_df, name):
+def predict(_df, name, key):
     result_sdf = model_ref.predict(deployment_name=model_deployment_name, data=_df)
     return result_sdf.to_pandas()
 
@@ -91,7 +91,7 @@ def get_mape():
 
 mape = get_mape()
 
-df_test_pred = predict(df_test, "test")
+df_test_pred = predict(df_test, "test", model_deployment_name)
 
 ordinal_encoder = pipeline.steps[0][1].to_sklearn()
 model = pipeline.steps[1][1].to_xgboost()
@@ -105,13 +105,13 @@ selection = st.radio(
 
 
 @st.cache_data
-def explain(df):
+def explain(df, key):
     explainer = shap.TreeExplainer(model)
     shap_values = explainer(df[model_input_cols])
     return explainer, shap_values
 
 
-explainer, shap_values = explain(df_test_pred)
+explainer, shap_values = explain(df_test_pred, model_deployment_name)
 
 if selection == "What-If":
     with st.expander("Ordinal Encoder Categories"):
@@ -122,16 +122,17 @@ if selection == "What-If":
     if isinstance(expected_value, list):
         expected_value = expected_value[1]
 
+    row_key = "row" + model_deployment_name
     if st.button("Get Random Row"):
-        st.session_state.pop("row")
-    row = st.session_state.get("row")
+        st.session_state.pop(row_key)
+    row = st.session_state.get(row_key)
     if row is None:
         row = df_test_pred.sample(1)[model_input_cols].T.copy()
         row.columns = ["Example"]
-    st.session_state["row"] = row
+    st.session_state[row_key] = row
 
     @st.cache_resource
-    def waterfall(rows):
+    def waterfall(rows, key):
         explainer_row = explainer(rows)
         fig, _ = plt.subplots()
         shap.plots.decision(
@@ -155,7 +156,7 @@ if selection == "What-If":
         row_whatif = st.data_editor(row, num_rows="fixed", key="whatif")
 
     rows = pd.concat([row, row_whatif], axis=1).T
-    waterfall(rows)
+    waterfall(rows, model_deployment_name)
 
 if selection == "Summary":
     st.write("Summary of SHAP Values")
@@ -194,10 +195,10 @@ if selection == "Shap Location":
     st.header("SHAP Location")
 
     # Make a pydeck plot of shap values based on Lat/Lon
-    df_train_pred = predict(df_train, "train")
+    df_train_pred = predict(df_train, "train", model_deployment_name)
     df_pred_all = pd.concat([df_train_pred, df_test_pred], axis=0).sample(n=10_000)
 
-    explainer_all, shap_values_all = explain(df_pred_all)
+    explainer_all, shap_values_all = explain(df_pred_all, model_deployment_name)
 
     def plot_shap_map(data, shap_values, name):
         data = data.copy()
